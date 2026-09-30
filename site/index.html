@@ -1,0 +1,448 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>bmc-validation-platform</title>
+<meta name="description" content="OpenBMC firmware validation platform: Redfish/IPMI testing, firmware supply-chain security and GPU diagnostics in one Jenkins pipeline.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root {
+  --paper: #F2F4F0;
+  --panel: #E7EBE5;
+  --ink: #14201B;
+  --ink-2: #4A5A53;
+  --rule: #C9D1CA;
+  --accent: #1D5BB8;
+  --amber: #C98100;
+  --pass: #1E7B45;
+  --fail: #B42318;
+  --bar: #9FB0A6;
+  --display: "IBM Plex Sans Condensed", "Noto Sans TC", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Noto Sans TC", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0F1513; --panel: #17201D; --ink: #E2E9E5; --ink-2: #9DADA5;
+    --rule: #2A3632; --accent: #7EA8F2; --amber: #F2B441; --pass: #4CC47E; --fail: #FF7A6B; --bar: #4B5C55;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0F1513; --panel: #17201D; --ink: #E2E9E5; --ink-2: #9DADA5;
+  --rule: #2A3632; --accent: #7EA8F2; --amber: #F2B441; --pass: #4CC47E; --fail: #FF7A6B; --bar: #4B5C55;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.6 var(--body); margin: 0; }
+.page[data-lang="en"] [lang="zh-Hant"], .page[data-lang="zh"] [lang="en"] { display: none !important; }
+.page[data-lang="zh"] { font-size: 15.5px; line-height: 1.75; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; }
+
+/* top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper);
+  border-bottom: 1px solid var(--rule); }
+.bar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; }
+.bar .id { font-family: var(--mono); font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .id b { color: var(--ink); font-weight: 500; }
+.lang { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; flex: none; }
+.lang button { font: 500 13px var(--body); padding: 5px 12px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+/* hero */
+.hero { padding-block: 56px 40px; display: grid; gap: 28px; }
+.eyebrow { font: 500 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.hero h1 { font-size: clamp(34px, 6vw, 60px); line-height: 1.05; font-weight: 700; letter-spacing: -0.01em; max-width: 18ch; }
+.page[data-lang="zh"] .hero h1 { max-width: 16em; letter-spacing: 0.01em; line-height: 1.2; }
+.hero .lede { font-size: 18px; color: var(--ink-2); max-width: 62ch; margin: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 15px; }
+
+/* flash map */
+.flash { border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 18px; display: grid; gap: 12px; }
+.flash-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.flash-head b { color: var(--ink); font-family: var(--display); font-size: 16px; font-weight: 600; }
+.map { display: flex; height: 58px; border: 1px solid var(--ink); border-radius: 3px; overflow: hidden; }
+.seg { display: flex; flex-direction: column; justify-content: center; padding-inline: 8px; font-size: 12px; line-height: 1.25; min-width: 0; }
+.seg span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg.boot { flex: 14.84; background: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink) 12%, transparent) 5px 6px); border-right: 1px solid var(--ink); }
+.seg.rootfs { flex: 69.21; background: var(--amber); color: #1A1200; font-weight: 500; }
+.seg.rest { flex: 15.95; border-left: 1px solid var(--ink); color: var(--ink-2); }
+.ticks { position: relative; height: 18px; font: 11px var(--mono); color: var(--ink-2); }
+.ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.ticks span:first-child { transform: none; }
+.ticks span:last-child { transform: translateX(-100%); }
+.flash-note { font-size: 13.5px; color: var(--ink-2); margin: 0; }
+
+/* sections */
+section.block { border-top: 1px solid var(--rule); padding-block: 48px; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 20px 40px; }
+.label { font: 500 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding-top: 6px; }
+.label b { display: block; font-family: var(--display); font-size: 14px; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 2px; }
+.content { display: grid; gap: 20px; min-width: 0; }
+.content h2 { font-size: clamp(24px, 3.4vw, 32px); line-height: 1.15; font-weight: 600; }
+.content p { margin: 0; max-width: 68ch; }
+.muted { color: var(--ink-2); }
+
+/* questions */
+.questions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.q { padding: 18px; display: grid; gap: 8px; align-content: start; }
+.q + .q { border-left: 1px solid var(--rule); }
+.q h3 { font-size: 18px; font-weight: 600; }
+.q p { font-size: 14.5px; color: var(--ink-2); }
+.q .tag { font: 500 11.5px var(--mono); color: var(--accent); letter-spacing: 0.04em; }
+
+/* numbers */
+.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.fig { display: grid; gap: 4px; align-content: start; }
+.fig .n { font: 600 34px/1 var(--display); font-variant-numeric: tabular-nums; }
+.fig .n small { font-size: 18px; color: var(--ink-2); font-weight: 500; }
+.fig .t { font-size: 13.5px; color: var(--ink-2); }
+
+.split { display: grid; gap: 6px; }
+.split-bar { display: flex; height: 30px; border-radius: 4px; overflow: hidden; font: 500 12px var(--mono); }
+.split-bar div { display: flex; align-items: center; padding-inline: 10px; white-space: nowrap; overflow: hidden; }
+.split-bar .kept { flex: 133; background: var(--ink); color: var(--paper); }
+.split-bar .drop { flex: 168; background: repeating-linear-gradient(135deg, var(--panel) 0 6px, var(--rule) 6px 7px); color: var(--ink-2); }
+.split-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; font-size: 13px; color: var(--ink-2); }
+
+.hbars { display: grid; gap: 7px; }
+.hbar { display: grid; grid-template-columns: 150px minmax(0, 1fr) 32px; gap: 12px; align-items: center; font-size: 13px; }
+.hbar .k { font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar .track { height: 10px; background: var(--panel); border-radius: 2px; }
+.hbar .fill { height: 100%; background: var(--bar); border-radius: 2px; }
+.hbar .v { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.hbars.cov .fill { background: var(--accent); }
+.subhead { font: 600 15px var(--display); letter-spacing: 0.02em; }
+
+/* gate runs */
+.runs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.run { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.run-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font: 13px var(--mono); }
+.pill { font: 600 12px var(--mono); padding: 3px 9px; border-radius: 999px; letter-spacing: 0.04em; }
+.pill.pass { color: var(--pass); border: 1px solid var(--pass); }
+.pill.fail { color: var(--fail); border: 1px solid var(--fail); }
+.run pre { margin: 0; padding: 14px; font: 12.5px/1.6 var(--mono); overflow-x: auto; background: var(--panel); }
+.run pre .ok { color: var(--pass); } .run pre .bad { color: var(--fail); } .run pre .dim { color: var(--ink-2); }
+.run p { padding: 12px 14px; font-size: 14px; color: var(--ink-2); }
+
+/* pipeline */
+.pipe { display: grid; grid-template-columns: 1fr 1fr 2.2fr 1fr; gap: 10px; align-items: stretch; }
+.stage { border: 1px solid var(--rule); border-radius: 6px; padding: 12px; display: grid; gap: 4px; align-content: start; font-size: 13.5px; }
+.stage b { font: 600 15px var(--display); }
+.stage .mono { color: var(--ink-2); font-size: 12px; }
+.par { display: grid; gap: 8px; }
+.par .stage { border-left: 3px solid var(--accent); }
+.par .stage.opt { border-left-color: var(--rule); border-style: dashed; border-left-style: solid; }
+
+/* decisions */
+.decisions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 32px; margin: 0; padding: 0; list-style: none; }
+.decisions li { display: grid; gap: 6px; align-content: start; }
+.decisions h3 { font-size: 17px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; }
+.decisions h3 .mono { color: var(--accent); font-size: 12px; font-weight: 500; }
+.decisions p { font-size: 14.5px; color: var(--ink-2); }
+
+/* table */
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font: 500 11.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); background: var(--panel); }
+td.x { font-family: var(--mono); white-space: nowrap; }
+.act { font: 600 11.5px var(--mono); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+.act.a0 { color: var(--ink-2); border: 1px solid var(--rule); }
+.act.a1 { color: var(--accent); border: 1px solid var(--accent); }
+.act.a2 { color: var(--amber); border: 1px solid var(--amber); }
+.act.a3 { color: var(--fail); border: 1px solid var(--fail); }
+
+/* status */
+.status { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.status li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 15px; }
+.box { width: 16px; height: 16px; border: 1.5px solid var(--ink-2); border-radius: 3px; margin-top: 4px; display: grid; place-items: center; }
+.done .box { background: var(--pass); border-color: var(--pass); }
+.done .box::after { content: ""; width: 8px; height: 4px; border: solid var(--paper); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+
+footer { border-top: 1px solid var(--rule); padding-block: 28px 48px; font-size: 13.5px; color: var(--ink-2); }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+
+@media (max-width: 820px) {
+  section.block { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-block: 36px; }
+  .questions { grid-template-columns: minmax(0, 1fr); }
+  .q + .q { border-left: 0; border-top: 1px solid var(--rule); }
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; }
+  .runs, .decisions { grid-template-columns: minmax(0, 1fr); }
+  .pipe { grid-template-columns: minmax(0, 1fr); }
+  .hbar { grid-template-columns: 118px minmax(0, 1fr) 28px; }
+  .seg.rest span, .seg.boot span + span { display: none; }
+  .ticks span:nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seg.rootfs { animation: glow 2.4s ease-out 1; }
+  @keyframes glow { from { filter: brightness(1.25); } to { filter: none; } }
+}
+</style>
+
+<div class="page" id="page" data-lang="en">
+
+<header class="bar">
+  <div class="wrap">
+    <div class="id"><b>bmc-validation-platform</b> · flin1206</div>
+    <div class="lang" role="group" aria-label="Language / 語言">
+      <button type="button" id="btn-en" data-set="en" aria-pressed="true">EN</button>
+      <button type="button" id="btn-zh" data-set="zh" aria-pressed="false">中文</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <div class="eyebrow"><span lang="en">OpenBMC · firmware validation · test infrastructure</span><span lang="zh-Hant">OpenBMC · 韌體驗證 · 測試基礎設施</span></div>
+    <h1>
+      <span lang="en">Validating the computer that controls the computer.</span>
+      <span lang="zh-Hant">驗證那台掌控伺服器的電腦。</span>
+    </h1>
+    <p class="lede">
+      <span lang="en">A BMC can power a server off, reflash it, and is reachable over the network. This project boots real OpenBMC firmware in QEMU, tests it over Redfish and IPMI, gates every build on the vulnerabilities it introduces, and checks the GPUs it manages, all from one Jenkins pipeline.</span>
+      <span lang="zh-Hant">BMC 可以把伺服器關機、重刷韌體，而且接在網路上。這個專案把真實的 OpenBMC 韌體放進 QEMU 開機，透過 Redfish 和 IPMI 測試它，依每個 build 新增的漏洞決定能不能出貨，也檢查它所管理的 GPU，全部串在同一條 Jenkins pipeline 裡。</span>
+    </p>
+    <div class="links">
+      <a href="https://github.com/flin1206/bmc-validation-platform">GitHub →</a>
+      <a href="https://github.com/flin1206/bmc-validation-platform/blob/main/docs/en/architecture.md" lang="en">Architecture &amp; decisions</a>
+      <a href="https://github.com/flin1206/bmc-validation-platform/blob/main/docs/zh-TW/architecture.md" lang="zh-Hant">架構與設計決策</a>
+      <a href="https://github.com/flin1206/bmc-validation-platform/blob/main/Jenkinsfile">Jenkinsfile</a>
+    </div>
+
+    <figure class="flash" style="margin:0">
+      <div class="flash-head">
+        <b><span lang="en">Flash map, found by the rootfs carver</span><span lang="zh-Hant">rootfs 切割工具找到的快閃配置</span></b>
+        <span class="mono">obmc-phosphor-image-romulus.static.mtd · 32 MiB · build #1754</span>
+      </div>
+      <div class="map" role="img" aria-label="U-Boot and kernel 0x0 to 0x4C0000; SquashFS rootfs 0x4C0000 to 0x1AE5A46, 23.2 MB xz; remainder to 0x2000000">
+        <div class="seg boot"><span>U-Boot</span><span>+ kernel</span></div>
+        <div class="seg rootfs"><span>SquashFS rootfs · xz · 23.2 MB</span><span class="mono">OpenBMC 3.1.0-dev-1341-g16d23c4743</span></div>
+        <div class="seg rest"><span lang="en">overlay</span><span lang="zh-Hant">可寫區</span></div>
+      </div>
+      <div class="ticks" aria-hidden="true">
+        <span style="left:0">0x0000000</span>
+        <span style="left:14.84%">0x04C0000</span>
+        <span style="left:84.05%">0x1AE5A46</span>
+        <span style="left:100%">0x2000000</span>
+      </div>
+      <p class="flash-note">
+        <span lang="en">Offsets differ per machine, so nothing is hard-coded. <code>bmcval extract-rootfs</code> scans for the <code>hsqs</code> magic and trusts a hit only after validating the superblock (version, block size, compressor, length). Everything on this page was measured on real upstream builds.</span>
+        <span lang="zh-Hant">不同機型的 offset 不同，所以完全不寫死。<code>bmcval extract-rootfs</code> 搜尋 <code>hsqs</code> magic，並在驗證 superblock（版本、block size、壓縮格式、長度）之後才採信。本頁所有數字都來自上游真實 build 的實測。</span>
+      </p>
+    </figure>
+  </section>
+
+  <section class="block" id="scope">
+    <div class="label"><b>§1</b><span lang="en">Scope</span><span lang="zh-Hant">範圍</span></div>
+    <div class="content">
+      <h2><span lang="en">Three questions every firmware build has to answer</span><span lang="zh-Hant">每個韌體 build 都必須回答的三個問題</span></h2>
+      <div class="questions">
+        <div class="q">
+          <span class="tag">FUNCTIONAL</span>
+          <h3><span lang="en">Does it behave correctly?</span><span lang="zh-Hant">行為正確嗎？</span></h3>
+          <p><span lang="en">65 pytest cases over Redfish and IPMI, run against the booted image: sensors, power, RBAC, malformed input, rejected firmware updates.</span><span lang="zh-Hant">對開機後的映像執行 65 個 Redfish 與 IPMI 測試：感測器、電源、RBAC、異常輸入、被拒絕的韌體更新。</span></p>
+        </div>
+        <div class="q">
+          <span class="tag">SECURITY</span>
+          <h3><span lang="en">Did this build make it less secure?</span><span lang="zh-Hant">這次 build 有沒有變得更不安全？</span></h3>
+          <p><span lang="en">SBOM, then Grype, then a diff against the last good build. Only new findings fail the gate. Waivers need an owner and an expiry date.</span><span lang="zh-Hant">SBOM → Grype → 與上一個通過的 build 比較。只有新增的漏洞會讓 gate 失敗；豁免必須有負責人和到期日。</span></p>
+        </div>
+        <div class="q">
+          <span class="tag">DIAGNOSTICS</span>
+          <h3><span lang="en">Is the node healthy?</span><span lang="zh-Hant">節點健康嗎？</span></h3>
+          <p><span lang="en">A C++/NVML health tool, DCGM diagnostics and Xid log triage decide whether a GPU node should be reset, drained or trusted.</span><span lang="zh-Hant">C++/NVML 健康檢查、DCGM 診斷和 Xid log 分診，判斷 GPU 節點該重置、下線，還是可以信任。</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="sbom">
+    <div class="label"><b>§2</b><span lang="en">Finding</span><span lang="zh-Hant">發現</span></div>
+    <div class="content">
+      <h2><span lang="en">56% of the “firmware vulnerabilities” were in software that never ships</span><span lang="zh-Hant">56% 的「韌體漏洞」，其實在根本不會出貨的軟體上</span></h2>
+      <p><span lang="en">Yocto's image SPDX also describes the tools on the <em>build machine</em>, such as <code>rsync-native</code> and <code>openssl-native</code>. OpenBMC ships no package database, so scanning the rootfs alone sees almost nothing. The gate scans the SPDX and then keeps only packages listed in the image manifest. Every exclusion is printed in the report so a reviewer can audit the filter.</span><span lang="zh-Hant">Yocto 的映像 SPDX 也把<em>建置機器</em>上的工具寫進去了，例如 <code>rsync-native</code>、<code>openssl-native</code>。OpenBMC 又沒有附套件資料庫，只掃 rootfs 幾乎什麼都看不到。所以 gate 先掃 SPDX，再只保留映像 manifest 裡列出的套件，而且每一筆排除都印在報告上，讓審查者檢查過濾是否正確。</span></p>
+
+      <div class="figures">
+        <div class="fig"><div class="n">301</div><div class="t"><span lang="en">raw Grype matches on the SPDX</span><span lang="zh-Hant">直接掃 SPDX 的原始筆數</span></div></div>
+        <div class="fig"><div class="n">133</div><div class="t"><span lang="en">in packages actually installed</span><span lang="zh-Hant">真的有安裝的套件</span></div></div>
+        <div class="fig"><div class="n">18<small> → 8</small></div><div class="t"><span lang="en">Critical, before → after filter</span><span lang="zh-Hant">Critical，過濾前 → 後</span></div></div>
+        <div class="fig"><div class="n">≈4<small> s</small></div><div class="t"><span lang="en">SBOM to CVE report, per build</span><span lang="zh-Hant">每個 build 從 SBOM 到 CVE 報告</span></div></div>
+      </div>
+
+      <div class="split">
+        <div class="split-bar" role="img" aria-label="133 shipped, 168 excluded of 301">
+          <div class="kept">133 <span lang="en">&nbsp;shipped</span><span lang="zh-Hant">&nbsp;出貨</span></div>
+          <div class="drop">168 <span lang="en">&nbsp;build-host only</span><span lang="zh-Hant">&nbsp;只在建置主機</span></div>
+        </div>
+        <div class="split-legend mono"><span>romulus #1754 · 2026-09-30</span><span>grype 0.119.0 · syft 1.52.0</span></div>
+      </div>
+
+      <div class="subhead"><span lang="en">Largest excluded groups (findings)</span><span lang="zh-Hant">被排除最多的套件（筆數）</span></div>
+      <div class="hbars">
+        <div class="hbar"><span class="k">rsync-native</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">29</span></div>
+        <div class="hbar"><span class="k">python3</span><div class="track"><div class="fill" style="width:51.7%"></div></div><span class="v">15</span></div>
+        <div class="hbar"><span class="k">python3-native</span><div class="track"><div class="fill" style="width:51.7%"></div></div><span class="v">15</span></div>
+        <div class="hbar"><span class="k">unzip-native</span><div class="track"><div class="fill" style="width:48.3%"></div></div><span class="v">14</span></div>
+        <div class="hbar"><span class="k">libxml2</span><div class="track"><div class="fill" style="width:37.9%"></div></div><span class="v">11</span></div>
+        <div class="hbar"><span class="k">libxml2-native</span><div class="track"><div class="fill" style="width:37.9%"></div></div><span class="v">11</span></div>
+        <div class="hbar"><span class="k">openssl-native</span><div class="track"><div class="fill" style="width:34.5%"></div></div><span class="v">10</span></div>
+      </div>
+      <p class="muted" style="font-size:14px"><span lang="en"><code>python3</code> and <code>libxml2</code> are not “-native”, so they were checked by hand: neither exists in the extracted rootfs nor in the manifest.</span><span lang="zh-Hant"><code>python3</code> 和 <code>libxml2</code> 名稱裡沒有「-native」，所以另外人工確認過：解出來的 rootfs 和 manifest 裡都沒有它們。</span></p>
+    </div>
+  </section>
+
+  <section class="block" id="gate">
+    <div class="label"><b>§3</b><span lang="en">Release gate</span><span lang="zh-Hant">出貨把關</span></div>
+    <div class="content">
+      <h2><span lang="en">Gate the delta, not the total</span><span lang="zh-Hant">把關的是差異，不是總數</span></h2>
+      <p><span lang="en">Almost every embedded Linux image has known CVEs, so a total count tells you nothing to do. What this build added is actionable. Two real runs on the same pair of upstream builds:</span><span lang="zh-Hant">幾乎每個嵌入式 Linux 映像都有已知 CVE，總數本身沒辦法指引任何行動；這次 build 新增了什麼，才能採取行動。以下是同一組上游 build 的兩次真實執行：</span></p>
+      <div class="runs">
+        <div class="run">
+          <div class="run-head"><span>#1752 → #1754</span><span class="pill pass">PASS · exit 0</span></div>
+<pre><span class="dim">            Crit  High  Med  Low</span>
+New            0     0    0    0
+<span class="ok">Fixed          3    18   10    0</span>
+Carried        8    65   55    5</pre>
+          <p><span lang="en">29 of the 31 fixes come from <code>rsync</code> leaving the image.</span><span lang="zh-Hant">31 筆修復中有 29 筆來自 <code>rsync</code> 被移出映像。</span></p>
+        </div>
+        <div class="run">
+          <div class="run-head"><span>#1754 → #1752</span><span class="pill fail">FAIL · exit 1</span></div>
+<pre><span class="dim">            Crit  High  Med  Low</span>
+<span class="bad">New            3    18   10    0</span>
+Fixed          0     0    0    0
+<span class="dim">Blocking: CVE-2026-53791, -70452, -70460</span></pre>
+          <p><span lang="en">Reverse the builds and the same Criticals are new, so the build fails. In Jenkins the baseline is whatever the last passing nightly shipped.</span><span lang="zh-Hant">把 build 對調，同樣的 Critical 就變成新增，build 失敗。在 Jenkins 裡，baseline 就是上一次通過的 nightly 所出貨的版本。</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="pipeline">
+    <div class="label"><b>§4</b><span lang="en">Pipeline</span><span lang="zh-Hant">Pipeline</span></div>
+    <div class="content">
+      <h2><span lang="en">One nightly Jenkins run, one JUnit view</span><span lang="zh-Hant">每晚一次 Jenkins，一個 JUnit 畫面</span></h2>
+      <div class="pipe">
+        <div class="stage"><b>Setup</b><span lang="en">ruff and 32 unit tests. A broken toolkit fails in seconds.</span><span lang="zh-Hant">ruff 與 32 個單元測試，工具壞了幾秒就失敗。</span><span class="mono">pytest tests/unit</span></div>
+        <div class="stage"><b>Fetch</b><span lang="en">Image, SPDX and manifest from upstream CI, with sha256 recorded.</span><span lang="zh-Hant">從上游 CI 下載映像、SPDX、manifest，並記錄 sha256。</span><span class="mono">bmcval fetch</span></div>
+        <div class="par">
+          <div class="stage"><b><span lang="en">BMC functional</span><span lang="zh-Hant">BMC 功能測試</span></b><span lang="en">QEMU boot from a fresh flash copy, then the smoke gate, then 65 tests.</span><span lang="zh-Hant">從全新的 flash 複本開機 → smoke gate → 65 個測試。</span><span class="mono">bmcval boot · pytest</span></div>
+          <div class="stage"><b><span lang="en">Firmware security</span><span lang="zh-Hant">韌體資安</span></b><span lang="en">SBOM, Grype, then the delta against the last good build.</span><span lang="zh-Hant">SBOM → Grype → 與上一個通過的 build 比較。</span><span class="mono">bmcval cve-diff</span></div>
+          <div class="stage opt"><b><span lang="en">GPU diagnostics</span><span lang="zh-Hant">GPU 診斷</span></b><span lang="en">NVML, DCGM and Xid, on agents labelled <code>gpu</code>.</span><span lang="zh-Hant">NVML · DCGM · Xid，跑在 <code>gpu</code> label 的 agent。</span><span class="mono">gpu-health · dcgmi</span></div>
+        </div>
+        <div class="stage"><b>Report</b><span lang="en">Every producer writes JUnit. The dashboard adds a per-suite trend.</span><span lang="zh-Hant">所有結果都是 JUnit，dashboard 附各測試集趨勢。</span><span class="mono">bmcval report</span></div>
+      </div>
+      <p class="muted" style="font-size:14.5px"><span lang="en">Status means something. <b>Failed</b>: the run can't be trusted (boot, smoke or scanner broke). <b>Unstable</b>: the firmware has bugs. Exit 1 (policy) and exit 2 (infrastructure) are reported apart, so a broken scanner never reads as clean firmware.</span><span lang="zh-Hant">狀態有明確意義。<b>Failed</b>：這次結果不可信（開機、smoke 或掃描工具壞了）；<b>Unstable</b>：韌體有 bug。Exit 1（政策）和 exit 2（基礎設施）分開回報，掃描工具壞掉絕不會被當成韌體沒問題。</span></p>
+    </div>
+  </section>
+
+  <section class="block" id="tests">
+    <div class="label"><b>§5</b><span lang="en">Coverage</span><span lang="zh-Hant">覆蓋範圍</span></div>
+    <div class="content">
+      <h2><span lang="en">Negative tests assert three things</span><span lang="zh-Hant">負向測試同時檢查三件事</span></h2>
+      <p><span lang="en">Each test checks the right status code, a spec-compliant Redfish error body with the exact <code>MessageId</code>, and that <b>the BMC is still alive afterwards</b>. A rejected firmware image only passes if the running version is unchanged.</span><span lang="zh-Hant">正確的狀態碼、符合規格且 <code>MessageId</code> 正確的 Redfish 錯誤內容，以及<b>測完之後 BMC 還活著</b>。被拒絕的韌體映像，只有在執行中的版本沒變時才算通過。</span></p>
+      <div class="hbars cov">
+        <div class="hbar"><span class="k"><span lang="en">auth &amp; sessions</span><span lang="zh-Hant">認證與 session</span></span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">12</span></div>
+        <div class="hbar"><span class="k"><span lang="en">malformed input</span><span lang="zh-Hant">異常輸入</span></span><div class="track"><div class="fill" style="width:91.7%"></div></div><span class="v">11</span></div>
+        <div class="hbar"><span class="k">service root</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">9</span></div>
+        <div class="hbar"><span class="k">IPMI</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">9</span></div>
+        <div class="hbar"><span class="k"><span lang="en">firmware update</span><span lang="zh-Hant">韌體更新</span></span><div class="track"><div class="fill" style="width:58.3%"></div></div><span class="v">7</span></div>
+        <div class="hbar"><span class="k"><span lang="en">accounts &amp; RBAC</span><span lang="zh-Hant">帳號與 RBAC</span></span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">6</span></div>
+        <div class="hbar"><span class="k"><span lang="en">sensors</span><span lang="zh-Hant">感測器</span></span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">6</span></div>
+        <div class="hbar"><span class="k"><span lang="en">power</span><span lang="zh-Hant">電源</span></span><div class="track"><div class="fill" style="width:41.7%"></div></div><span class="v">5</span></div>
+      </div>
+      <p class="muted" style="font-size:14px"><span lang="en">Tests declare required capabilities, for example <code>@requires("host_power")</code>. The QEMU profile has no host CPU, so those tests are skipped with that reason and never counted as passing.</span><span lang="zh-Hant">測試會宣告需要的能力，例如 <code>@requires("host_power")</code>。QEMU profile 沒有主機 CPU，這些測試會標示原因並跳過，絕不會算成通過。</span></p>
+    </div>
+  </section>
+
+  <section class="block" id="gpu">
+    <div class="label"><b>§6</b><span lang="en">GPU nodes</span><span lang="zh-Hant">GPU 節點</span></div>
+    <div class="content">
+      <h2><span lang="en">From an Xid number to an action</span><span lang="zh-Hant">從 Xid 編號到處置動作</span></h2>
+      <p><span lang="en">The driver logs a number, but on-call needs a decision. Xids are grouped by likely origin, and the worst action per GPU becomes the node's <code>node_action</code>.</span><span lang="zh-Hant">驅動只給一個數字，值班需要的是決策。Xid 依可能來源分類，每張 GPU 取最嚴重的處置，成為節點的 <code>node_action</code>。</span></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Xid</th><th><span lang="en">Meaning</span><span lang="zh-Hant">意義</span></th><th><span lang="en">Origin</span><span lang="zh-Hant">來源</span></th><th><span lang="en">Action</span><span lang="zh-Hant">處置</span></th></tr></thead>
+          <tbody>
+            <tr><td class="x">13 · 31 · 43</td><td><span lang="en">Engine exception, MMU fault, stopped processing</span><span lang="zh-Hant">引擎例外、MMU fault、停止處理</span></td><td><span lang="en">application</span><span lang="zh-Hant">應用程式</span></td><td><span class="act a1">CHECK_APP</span></td></tr>
+            <tr><td class="x">48 · 94 · 119</td><td><span lang="en">Double-bit ECC, contained ECC, GSP timeout</span><span lang="zh-Hant">雙位元 ECC、可隔離 ECC、GSP 逾時</span></td><td><span lang="en">hw / driver</span><span lang="zh-Hant">硬體 / 驅動</span></td><td><span class="act a2">RESET_GPU</span></td></tr>
+            <tr><td class="x">64 · 74 · 79 · 95</td><td><span lang="en">Row-remap failure, NVLink, fell off the bus, uncontained ECC</span><span lang="zh-Hant">row remap 失敗、NVLink、從 bus 掉落、無法隔離的 ECC</span></td><td><span lang="en">hardware</span><span lang="zh-Hant">硬體</span></td><td><span class="act a3">DRAIN_NODE</span></td></tr>
+            <tr><td class="x">45 · 63</td><td><span lang="en">Follow-on cleanup, remap recorded</span><span lang="zh-Hant">連帶清理、remap 已記錄</span></td><td><span lang="en">info</span><span lang="zh-Hant">通知</span></td><td><span class="act a0">NONE</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:14px"><span lang="en"><code>gpu-health</code> (C++17 over NVML) fails a GPU whose PCIe <em>width</em> trained below max. A lower <em>generation</em> only warns, because links downshift at idle to save power. Compiled against NVIDIA's CUDA 12.9 <code>nvml.h</code> with no warnings under <code>-Wall -Wextra -Wpedantic</code>.</span><span lang="zh-Hant"><code>gpu-health</code>（C++17、NVML）遇到 PCIe <em>寬度</em>低於最大值會判定失敗；<em>世代</em>較低只發警告，因為閒置時降速省電是正常的。已用 NVIDIA CUDA 12.9 的 <code>nvml.h</code> 編譯，<code>-Wall -Wextra -Wpedantic</code> 零警告。</span></p>
+    </div>
+  </section>
+
+  <section class="block" id="decisions">
+    <div class="label"><b>§7</b><span lang="en">Decisions</span><span lang="zh-Hant">設計決策</span></div>
+    <div class="content">
+      <h2><span lang="en">Choices that keep the signal trustworthy</span><span lang="zh-Hant">讓結果值得信任的設計選擇</span></h2>
+      <ul class="decisions">
+        <li><h3><span class="mono">D2</span><span lang="en">Fresh flash copy every boot</span><span lang="zh-Hant">每次開機都用全新的 flash 複本</span></h3><p><span lang="en">The emulated flash is writable. Without a copy, a test that flashes firmware leaks state into the next run, and failures start depending on test order.</span><span lang="zh-Hant">模擬的 flash 可寫。不複製的話，刷韌體的測試會把狀態留給下一輪，失敗結果會取決於測試順序。</span></p></li>
+        <li><h3><span class="mono">D4</span><span lang="en">Ready means usable, not listening</span><span lang="zh-Hant">就緒是指可以用，不是有在聽</span></h3><p><span lang="en">bmcweb answers the service root before its D-Bus backends are up. Readiness requires a real session and a populated Managers collection.</span><span lang="zh-Hant">bmcweb 在 D-Bus 後端啟動前就會回應 service root。就緒必須能建立真的 session，而且 Managers collection 已有成員。</span></p></li>
+        <li><h3><span class="mono">D6</span><span lang="en">Retry connections, never HTTP errors</span><span lang="zh-Hant">重試連線錯誤，絕不重試 HTTP 錯誤</span></h3><p><span lang="en">Retries cover a BMC that is rebooting. They never cover a 500, so a flaky endpoint can't hide behind a retry.</span><span lang="zh-Hant">重試是為了應付正在重開機的 BMC，不處理 500，所以不穩定的 endpoint 無法靠重試蒙混過去。</span></p></li>
+        <li><h3><span class="mono">D9</span><span lang="en">Loopback-only port forwards</span><span lang="zh-Hant">Port forwarding 只綁 loopback</span></h3><p><span lang="en">The emulated BMC uses the well-known default password, so it must never be reachable from the lab network. A unit test enforces this.</span><span lang="zh-Hant">模擬的 BMC 使用眾所周知的預設密碼，絕不能從實驗室網路連得到。這點由單元測試把關。</span></p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="block" id="status">
+    <div class="label"><b>§8</b><span lang="en">Status</span><span lang="zh-Hant">進度</span></div>
+    <div class="content">
+      <h2><span lang="en">What has been verified, and what hasn't yet</span><span lang="zh-Hant">已驗證與尚未驗證的項目</span></h2>
+      <ul class="status">
+        <li class="done"><span class="box"></span><span><span lang="en">Security pipeline end-to-end on real upstream firmware (romulus #1752, #1754)</span><span lang="zh-Hant">資安 pipeline 已在上游真實韌體上端到端驗證（romulus #1752、#1754）</span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en">32 unit tests green; functional suite (65) imports and collects</span><span lang="zh-Hant">32 個單元測試通過；功能測試（65 個）可正常載入與收集</span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en"><code>gpu-health</code> compiles clean against the official <code>nvml.h</code></span><span lang="zh-Hant"><code>gpu-health</code> 以官方 <code>nvml.h</code> 編譯零警告</span></span></li>
+        <li><span class="box"></span><span><span lang="en">Functional suite run against QEMU-booted romulus, with results published</span><span lang="zh-Hant">在 QEMU 開機的 romulus 上執行功能測試並公開結果</span></span></li>
+        <li><span class="box"></span><span><span lang="en">GPU stage on a physical GPU node</span><span lang="zh-Hant">在實體 GPU 節點上執行 GPU stage</span></span></li>
+        <li><span class="box"></span><span><span lang="en">DMTF Redfish Service Validator stage; <code>gb200nvl-obmc</code> once QEMU models it</span><span lang="zh-Hant">加入 DMTF Redfish Service Validator stage；QEMU 支援後納入 <code>gb200nvl-obmc</code></span></span></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>flin1206 · MIT</span>
+    <span class="mono">Python · pytest · C++17/NVML · Jenkins JCasC · QEMU · Syft/Grype · Packer · OpenSCAP</span>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var page = document.getElementById('page');
+  function set(lang) {
+    page.setAttribute('data-lang', lang);
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+    document.getElementById('btn-en').setAttribute('aria-pressed', lang === 'en');
+    document.getElementById('btn-zh').setAttribute('aria-pressed', lang === 'zh');
+    try { localStorage.setItem('bmcval-lang', lang); } catch (e) {}
+  }
+  var initial = 'en';
+  var hash = (location.hash || '').slice(1);
+  if (hash === 'zh' || hash === 'en') initial = hash;
+  else {
+    var saved = null;
+    try { saved = localStorage.getItem('bmcval-lang'); } catch (e) {}
+    if (saved === 'zh' || saved === 'en') initial = saved;
+    else if (/^zh/i.test(navigator.language || '')) initial = 'zh';
+  }
+  set(initial);
+  document.querySelectorAll('.lang button').forEach(function (b) {
+    b.addEventListener('click', function () { set(b.getAttribute('data-set')); });
+  });
+})();
+</script>
