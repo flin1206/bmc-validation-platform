@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bmcval"
+version = "0.1.0"
+description = "Firmware validation platform for OpenBMC: Redfish/IPMI functional tests, firmware supply-chain security, and GPU node diagnostics, orchestrated by Jenkins."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "flin1206" }]
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31",
+  "PyYAML>=6.0",
+  "urllib3>=2.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-timeout>=2.3"]
+dev = ["pytest>=8.0", "pytest-timeout>=2.3", "ruff>=0.6"]
+
+[project.scripts]
+bmcval = "bmcval.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bmcval = ["data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "smoke: fast checks that gate every other stage",
+  "sensors: sensor inventory and threshold validation",
+  "power: chassis / host power state transitions",
+  "negative: malformed or unauthorized input handling",
+  "accounts: user management and privilege enforcement",
+  "firmware: firmware inventory and update flow",
+  "ipmi: IPMI-over-LAN interface",
+  "destructive: changes BMC state; opt-in with --run-destructive",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures embed verbatim log lines and XML that must not be re-wrapped.
+"tests/**" = ["E501"]
