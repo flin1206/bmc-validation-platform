@@ -1,9 +1,8 @@
 name: pages
 
+# Manual only: Pages on a private repository needs a paid GitHub plan.
+# Once the repo is public (or on GitHub Pro), add a push trigger on site/**.
 on:
-  push:
-    branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
