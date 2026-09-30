@@ -1,0 +1,9 @@
+#cloud-config
+# Temporary build-time account; removed by the last Packer provisioner.
+users:
+  - name: packer
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    plain_text_passwd: packer
+ssh_pwauth: true
