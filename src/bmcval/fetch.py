@@ -33,12 +33,29 @@ class Artifact:
 
 def _patterns(machine: str) -> dict[str, re.Pattern]:
     stem = re.escape(f"obmc-phosphor-image-{machine}")
+    ts = r"(?P<ts>-\d{14})"
     return {
-        "mtd": re.compile(rf"{stem}\.static\.mtd$"),
-        "spdx": re.compile(rf"{stem}-\d{{14}}\.spdx\.json$"),
-        "manifest": re.compile(rf"{stem}-\d{{14}}\.manifest$"),
-        "update": re.compile(rf"{stem}-\d{{14}}\.static\.mtd\.tar$"),
+        # Some machines publish the flash image only under a stable name (romulus),
+        # others only timestamped (gb200nvl-obmc, where the stable name is a symlink).
+        "mtd": re.compile(rf"{stem}{ts}?\.static\.mtd$"),
+        "spdx": re.compile(rf"{stem}{ts}\.spdx\.json$"),
+        "manifest": re.compile(rf"{stem}{ts}\.manifest$"),
+        "update": re.compile(rf"{stem}{ts}\.static\.mtd\.tar$"),
     }
+
+
+def pick_artifacts(paths: list[str], machine: str) -> dict[str, Artifact]:
+    """Choose one artifact per kind, preferring timestamped (real file) over stable names."""
+    best: dict[str, tuple[bool, Artifact]] = {}
+    for path in paths:
+        for kind, pat in _patterns(machine).items():
+            m = pat.search(path)
+            if not m:
+                continue
+            timestamped = m.group("ts") is not None
+            if kind not in best or (timestamped and not best[kind][0]):
+                best[kind] = (timestamped, Artifact(kind, path))
+    return {kind: art for kind, (_, art) in best.items()}
 
 
 def job_url(jenkins: str, machine: str) -> str:
@@ -50,11 +67,7 @@ def resolve(jenkins: str, machine: str, build: str) -> tuple[int, list[Artifact]
     resp = requests.get(url, timeout=60)
     resp.raise_for_status()
     data = resp.json()
-    found: dict[str, Artifact] = {}
-    for art in data.get("artifacts", []):
-        for kind, pat in _patterns(machine).items():
-            if pat.search(art["relativePath"]):
-                found[kind] = Artifact(kind, art["relativePath"])
+    found = pick_artifacts([a["relativePath"] for a in data.get("artifacts", [])], machine)
     if "mtd" not in found:
         raise FileNotFoundError(f"build {data.get('number')} of {machine} has no .static.mtd")
     return data["number"], list(found.values())
