@@ -41,6 +41,7 @@ markers = [
   "firmware: firmware inventory and update flow",
   "ipmi: IPMI-over-LAN interface",
   "destructive: changes BMC state; opt-in with --run-destructive",
+  "applies_firmware: may flash and reboot the BMC; always scheduled last",
 ]
 
 [tool.ruff]

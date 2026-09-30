@@ -20,6 +20,11 @@ from bmcval.profiles import Profile, load_profile
 from bmcval.redfish import RedfishClient
 
 
+def pytest_collection_modifyitems(config, items):
+    """Run tests that may apply new firmware last: a successful update can reboot the BMC."""
+    items.sort(key=lambda item: item.get_closest_marker("applies_firmware") is not None)
+
+
 @pytest.fixture(scope="session")
 def profile(pytestconfig) -> Profile:
     return load_profile(pytestconfig.getoption("--profile"))
