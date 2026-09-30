@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - run: ruff check src tests && ruff format --check src tests
+      - run: pytest tests/unit -q --junitxml=reports/unit.xml
+      - run: pytest tests/functional --collect-only -q   # functional suite must at least import
+      - run: shellcheck scripts/*.sh infra/packer/scripts/*.sh
+
+  gpu-build:
+    # No GPU needed: NVML is linked against the CUDA toolkit's stub library.
+    runs-on: ubuntu-24.04
+    container: nvidia/cuda:12.6.3-devel-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends cmake make
+      - run: cmake -S gpu -B build/gpu && cmake --build build/gpu -j
+      - run: test -x build/gpu/gpu-health

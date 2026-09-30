@@ -1,0 +1,65 @@
+# Nightly supply-chain scan of real upstream OpenBMC builds. Runs without any
+# lab hardware, so the security half of the pipeline is continuously exercised
+# in public even when the Jenkins lab is offline.
+name: firmware-security
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      machine:
+        default: romulus
+      baseline_build:
+        description: "Upstream build number to diff against (default: oldest retained)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    env:
+      MACHINE: ${{ inputs.machine || 'romulus' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e . && sudo apt-get install -y squashfs-tools
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: anchore/scan-action/download-grype@v6
+      - name: Fetch candidate and baseline firmware
+        run: |
+          CAND=$(bmcval fetch --machine "$MACHINE" --kinds mtd,spdx,manifest | tail -n1)
+          BASE_BUILD="${{ inputs.baseline_build }}"
+          if [ -z "$BASE_BUILD" ]; then
+            BASE_BUILD=$(curl -sfg "https://jenkins.openbmc.org/job/latest-master/label=docker-builder,target=$MACHINE/api/json?tree=builds[number,result]" \
+              | python3 -c 'import json,sys; b=[x["number"] for x in json.load(sys.stdin)["builds"] if x["result"]=="SUCCESS"]; print(min(b))')
+          fi
+          BASE=$(bmcval fetch --machine "$MACHINE" --build "$BASE_BUILD" --kinds mtd,spdx,manifest | tail -n1)
+          echo "CAND=$CAND" >> "$GITHUB_ENV"; echo "BASE=$BASE" >> "$GITHUB_ENV"
+      - run: scripts/firmware-scan.sh "$BASE" reports/security/baseline
+      - run: scripts/firmware-scan.sh "$CAND" reports/security/candidate
+      - name: CVE delta gate
+        run: |
+          bmcval cve-diff \
+            --baseline reports/security/baseline/grype.json \
+            --candidate reports/security/candidate/grype.json \
+            --baseline-label "$(basename "$BASE")" --candidate-label "$(basename "$CAND")" \
+            --policy security/policy.yaml \
+            --baseline-manifest reports/security/baseline/image.manifest \
+            --candidate-manifest reports/security/candidate/image.manifest \
+            --markdown reports/security/cve-delta.md --junit reports/security-cve-gate.xml
+      - if: always()
+        run: cat reports/security/cve-delta.md >> "$GITHUB_STEP_SUMMARY" || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-security-${{ github.run_number }}
+          path: |
+            reports/security/*/grype.json
+            reports/security/*/sbom.spdx.json
+            reports/security/cve-delta.md
+            reports/security-cve-gate.xml
