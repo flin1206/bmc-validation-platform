@@ -59,13 +59,34 @@ def test_readonly_user_cannot_write(bmc_url, temp_account, manager_uri):
         client.logout()
 
 
-def test_readonly_user_cannot_escalate_own_role(bmc_url, temp_account):
+def test_readonly_user_cannot_escalate_own_role(redfish, bmc_url, temp_account):
+    """The security property is "the role did not change", not a specific status code.
+
+    bmcweb answers 400 PropertyUnknown here (a ReadOnly user may only PATCH its own
+    Password, so RoleId is not a valid property *for this caller*); other stacks answer
+    403. Both are refusals. What must never happen is a 2xx or a changed role.
+    """
     username, password = temp_account("ReadOnly")
     client = RedfishClient(bmc_url, username, password)
     client.login()
     try:
         resp = client.patch(
             f"/redfish/v1/AccountService/Accounts/{username}", json={"RoleId": "Administrator"}
+        )
+        assert resp.status_code in (400, 403), resp.text
+    finally:
+        client.logout()
+    role = redfish.get_json(f"/redfish/v1/AccountService/Accounts/{username}")["RoleId"]
+    assert role == "ReadOnly", f"privilege escalation: role is now {role}"
+
+
+def test_readonly_user_cannot_change_other_password(bmc_url, temp_account, credentials):
+    client = RedfishClient(bmc_url, *temp_account("ReadOnly"))
+    client.login()
+    try:
+        resp = client.patch(
+            f"/redfish/v1/AccountService/Accounts/{credentials[0]}",
+            json={"Password": "Hacked!12345678"},
         )
         assert resp.status_code == 403
     finally:
