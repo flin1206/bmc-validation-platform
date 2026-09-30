@@ -7,7 +7,7 @@ BUILD   ?= lastSuccessfulBuild
 PROFILE ?= qemu-$(MACHINE)
 IMAGES  := build/images/$(MACHINE)
 
-.PHONY: help venv lint unit fetch boot test test-all stop scan cve-diff report gpu jenkins-up jenkins-down clean
+.PHONY: help venv lint unit fetch boot test test-all stop scan cve-diff report gpu docker-test jenkins-up jenkins-down clean
 
 help:  ## Show targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -51,6 +51,10 @@ report:  ## Build the HTML dashboard from reports/
 
 gpu:  ## Build the NVML health tool (needs CUDA toolkit >= 12.2)
 	cmake -S gpu -B build/gpu -DCMAKE_BUILD_TYPE=Release && cmake --build build/gpu -j
+
+docker-test:  ## Boot + functional suite inside Docker (no local QEMU needed)
+	docker build -q -t bmcval-qemu -f infra/docker/Dockerfile . >/dev/null
+	docker run --rm -v $(CURDIR)/build/images:/images:ro -v $(CURDIR)/reports:/reports bmcval-qemu
 
 jenkins-up:  ## Start the Jenkins lab on http://localhost:8080
 	docker compose -f infra/jenkins/docker-compose.yml up -d --build
