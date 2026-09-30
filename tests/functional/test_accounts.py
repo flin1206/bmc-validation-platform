@@ -93,6 +93,22 @@ def test_readonly_user_cannot_change_other_password(bmc_url, temp_account, crede
         client.logout()
 
 
+@pytest.mark.destructive
+def test_password_change_takes_effect(redfish, bmc_url, temp_account, new_password):
+    """After a password change the new one works and the old one is dead immediately."""
+    username, old = temp_account("ReadOnly")
+    new = new_password()
+    resp = redfish.patch(f"/redfish/v1/AccountService/Accounts/{username}", json={"Password": new})
+    assert resp.status_code in (200, 204), resp.text
+
+    fresh = RedfishClient(bmc_url, username, new)
+    fresh.use_basic_auth()
+    stale = RedfishClient(bmc_url, username, old)
+    stale.use_basic_auth()
+    assert fresh.get("/redfish/v1/Systems").status_code == 200
+    assert stale.get("/redfish/v1/Systems").status_code == 401
+
+
 def test_deleted_account_cannot_log_in(redfish, bmc_url, temp_account):
     username, password = temp_account("Operator")
     assert redfish.delete(f"/redfish/v1/AccountService/Accounts/{username}").status_code in (

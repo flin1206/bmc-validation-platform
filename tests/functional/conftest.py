@@ -119,6 +119,12 @@ def strong_password(length: int = 16) -> str:
 
 
 @pytest.fixture
+def new_password():
+    """Factory for passwords that satisfy common BMC PAM policies (8..20 chars, 4 classes)."""
+    return strong_password
+
+
+@pytest.fixture
 def temp_account(redfish):
     """Factory creating Redfish accounts that are always deleted afterwards."""
     created: list[str] = []
