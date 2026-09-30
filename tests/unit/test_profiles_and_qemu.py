@@ -27,7 +27,8 @@ def test_unknown_profile_name():
         load_profile("no-such-board")
 
 
-def test_qemu_command_uses_working_copy_and_loopback_forwards(tmp_path):
+def test_qemu_command_uses_working_copy_and_loopback_forwards(tmp_path, monkeypatch):
+    monkeypatch.delenv("QEMU_BIN", raising=False)  # CI agents may point at a custom build
     bmc = QemuBmc(load_profile("qemu-romulus"), Path("golden.mtd"), tmp_path)
     cmd = bmc.command()
     assert cmd[:3] == ["qemu-system-arm", "-M", "romulus-bmc"]
@@ -37,6 +38,12 @@ def test_qemu_command_uses_working_copy_and_loopback_forwards(tmp_path):
     # Forwards bind to loopback only: an emulated BMC with default creds must not face the LAN.
     assert "hostfwd=tcp:127.0.0.1:2443-:443" in netdev
     assert "hostfwd=udp:127.0.0.1:2623-:623" in netdev
+
+
+def test_qemu_bin_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("QEMU_BIN", "/opt/qemu/bin/qemu-system-arm")
+    cmd = QemuBmc(load_profile("qemu-romulus"), Path("x"), tmp_path).command()
+    assert cmd[0] == "/opt/qemu/bin/qemu-system-arm"
 
 
 def test_stop_without_pidfile_is_noop(tmp_path):
