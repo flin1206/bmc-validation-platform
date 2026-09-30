@@ -76,22 +76,21 @@ def _push(redfish, payload: bytes):
     )
 
 
-def _assert_rejected_and_unchanged(redfish, manager_uri, resp, before: set, profile):
+def _outcome(redfish, resp, profile) -> str:
+    """'rejected' (4xx), 'server_error' (5xx), or the terminal TaskState of an accepted push."""
     if resp.status_code == 202:
-        # Accepted for async processing: the task must end in failure.
         task_uri = resp.json().get("@odata.id") or resp.headers["Location"]
-        task = redfish.wait_task(task_uri, timeout=profile.timeout("firmware_task", 900))
-        assert task["TaskState"] in ("Exception", "Killed", "Cancelled"), task
-    else:
-        assert 400 <= resp.status_code < 500, f"{resp.status_code}: {resp.text[:300]}"
-    after = {i["Version"] for i in bmc_images(redfish, manager_uri)}
-    assert after == before, f"firmware inventory changed after a bad image: {before} -> {after}"
-    assert redfish.get("/redfish/v1").status_code == 200
+        return redfish.wait_task(task_uri, timeout=profile.timeout("firmware_task", 900))[
+            "TaskState"
+        ]
+    if 400 <= resp.status_code < 500:
+        return "rejected"
+    if resp.status_code >= 500:
+        return "server_error"
+    return f"accepted({resp.status_code})"
 
 
-@pytest.mark.destructive
-@pytest.mark.requires("firmware_update_push")
-@pytest.mark.parametrize(
+CORRUPT = pytest.mark.parametrize(
     "payload",
     [
         secrets.token_bytes(64 * 1024),
@@ -100,10 +99,28 @@ def _assert_rejected_and_unchanged(redfish, manager_uri, resp, before: set, prof
     ],
     ids=["random_bytes", "empty", "truncated_tar"],
 )
-def test_corrupt_image_is_rejected(redfish, manager_uri, profile, payload):
+
+
+@pytest.mark.destructive
+@pytest.mark.requires("firmware_update_push")
+@CORRUPT
+def test_corrupt_image_never_applied(redfish, manager_uri, profile, payload):
+    """Safety: a bad image must never replace the running firmware or take the BMC down."""
     before = {i["Version"] for i in bmc_images(redfish, manager_uri)}
-    resp = _push(redfish, payload)
-    _assert_rejected_and_unchanged(redfish, manager_uri, resp, before, profile)
+    outcome = _outcome(redfish, _push(redfish, payload), profile)
+    assert outcome != "Completed" and not outcome.startswith("accepted"), outcome
+    after = {i["Version"] for i in bmc_images(redfish, manager_uri)}
+    assert after == before, f"firmware inventory changed after a bad image: {before} -> {after}"
+    assert redfish.get("/redfish/v1").status_code == 200
+
+
+@pytest.mark.destructive
+@pytest.mark.requires("firmware_update_push")
+@CORRUPT
+def test_corrupt_image_gets_client_error(redfish, profile, payload):
+    """Protocol: a malformed upload is the client's fault, so 4xx or a failed Task, never 500."""
+    outcome = _outcome(redfish, _push(redfish, payload), profile)
+    assert outcome in ("rejected", "Exception", "Killed", "Cancelled"), outcome
 
 
 @pytest.mark.destructive
