@@ -6,10 +6,10 @@
 
 | Level | Where it runs | Gate |
 |---|---|---|
-| **Unit** (32) | every push, GitHub Actions, no hardware | merge |
-| **Smoke** (9, `-m smoke`) | right after boot | the full functional run starts only if smoke passes |
-| **Functional** (65 total) | QEMU nightly; hardware via profile | build goes *unstable* on failure |
-| **Destructive** (7, `--run-destructive`) | QEMU by default (safe, because of the golden-image copy); opt-in on hardware | same |
+| **Unit** (35) | every push, GitHub Actions, no hardware | merge |
+| **Smoke** (8, `-m smoke`) | right after boot | the full functional run starts only if smoke passes |
+| **Functional** (71 total) | QEMU nightly; hardware via profile | build goes *unstable* on failure |
+| **Destructive** (11, `--run-destructive`) | QEMU by default (safe, because of the golden-image copy); opt-in on hardware | same |
 | **Security gate** | every build | build *fails* on new vulnerabilities at or above policy |
 
 ## Coverage matrix
@@ -21,8 +21,8 @@
 | Malformed input | `test_negative_input.py` | 11 | Malformed JSON, unknown property, wrong type, out-of-range value **not partially applied**, invalid ResetType, 405, path traversal (`../`, `%2e%2e`), 10 MiB body, wrong Content-Type |
 | Sensors | `test_sensors.py` | 6 | Discovered dynamically, minimum count per profile, unique IDs, numeric readings with valid units, threshold ordering, nothing beyond critical at idle, no Critical health |
 | Power | `test_power.py` | 5 | Power state reported, ResetType discovery via inline values or ActionInfo; *(host_power)* ForceOff→On, idempotent On, **transition leaves an event-log entry** |
-| Accounts & RBAC | `test_accounts.py` | 6 | Password policy, duplicate user, ReadOnly can read, **ReadOnly cannot write or create an Administrator**, **cannot escalate its own role**, deleted account cannot log in |
-| Firmware | `test_firmware.py` | 7 | Active image in inventory, Manager version matches it, pinned expected version; **random, empty and truncated images rejected with the running version unchanged and the BMC alive**; positive update with a real signed tarball |
+| Accounts & RBAC | `test_accounts.py` | 8 | Password policy, duplicate user, ReadOnly can read, **ReadOnly cannot write or create an Administrator**, **cannot escalate its own role**, **a changed password takes effect and the old one is dead**, ReadOnly cannot change another user's password, deleted account cannot log in |
+| Firmware | `test_firmware.py` | 11 | Active image in inventory, Manager version matches it, pinned expected version; bad images (random, empty, truncated) are tested twice: **never applied, BMC alive** (safety) and **answered with 4xx or a failed Task** (protocol); positive update with a real signed tarball |
 | IPMI | `test_ipmi.py` | 9 | `mc info`, selftest, chassis status, SDR, SEL, raw Get Device ID, invalid command returns a completion code and **ipmid survives**, wrong password, **cipher suite 0 disabled** |
 
 ## How the negative tests assert
@@ -34,6 +34,10 @@ A negative test that checks only `status == 400` misses the bugs that matter. Ea
 3. **The BMC is still healthy afterwards.** An autouse fixture requests the service root after each test. A 400 that leaves bmcweb crashing in a loop is still a failure.
 
 The firmware update tests use the same idea. A rejected image is only a pass if the **running firmware version is unchanged** and the BMC still answers. If the push is accepted asynchronously (202 + Task), the Task must end in `Exception`, `Killed` or `Cancelled`.
+
+## Results from live runs
+
+See [findings.md](findings.md): romulus #1752 to #1754 and gb200nvl-obmc #1754, with every failure traced to one of three root causes.
 
 ## Isolation
 
