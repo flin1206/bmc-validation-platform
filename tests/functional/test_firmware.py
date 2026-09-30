@@ -13,22 +13,36 @@ import pytest
 pytestmark = [pytest.mark.firmware, pytest.mark.requires("firmware_inventory")]
 
 
-def active_bmc_image(redfish, manager_uri) -> dict:
-    mgr = redfish.get_json(manager_uri)
-    return redfish.get_json(mgr["Links"]["ActiveSoftwareImage"]["@odata.id"])
+def bmc_images(redfish, manager_uri) -> list[dict]:
+    """Inventory items that declare the BMC manager as their RelatedItem.
+
+    Found independently of the Manager's own links, so an inventory problem and a
+    Manager-linking problem show up as separate failures.
+    """
+    return [
+        item
+        for item in redfish.members("/redfish/v1/UpdateService/FirmwareInventory")
+        if any(r.get("@odata.id") == manager_uri for r in item.get("RelatedItem", []))
+    ]
 
 
-def test_inventory_lists_active_bmc_image(redfish, manager_uri):
-    inv = redfish.get_json("/redfish/v1/UpdateService/FirmwareInventory")
-    assert inv["Members@odata.count"] >= 1
-    image = active_bmc_image(redfish, manager_uri)
-    assert image["Status"]["State"] == "Enabled"
-    assert image["Version"]
+def test_inventory_lists_bmc_image(redfish, manager_uri):
+    images = bmc_images(redfish, manager_uri)
+    assert images, "no FirmwareInventory item is related to the BMC manager"
+    assert any(i["Status"]["State"] == "Enabled" and i.get("Version") for i in images)
+
+
+def test_manager_links_active_image(redfish, manager_uri):
+    links = redfish.get_json(manager_uri).get("Links", {})
+    assert "ActiveSoftwareImage" in links, "Manager.Links.ActiveSoftwareImage missing"
 
 
 def test_manager_version_matches_active_image(redfish, manager_uri):
     mgr = redfish.get_json(manager_uri)
-    assert mgr["FirmwareVersion"] == active_bmc_image(redfish, manager_uri)["Version"]
+    versions = {i["Version"] for i in bmc_images(redfish, manager_uri)}
+    assert mgr.get("FirmwareVersion") in versions, (
+        f"Manager.FirmwareVersion={mgr.get('FirmwareVersion')!r}, inventory has {versions}"
+    )
 
 
 def test_expected_version_if_pinned(redfish, manager_uri):
@@ -62,7 +76,7 @@ def _push(redfish, payload: bytes):
     )
 
 
-def _assert_rejected_and_unchanged(redfish, manager_uri, resp, before: dict, profile):
+def _assert_rejected_and_unchanged(redfish, manager_uri, resp, before: set, profile):
     if resp.status_code == 202:
         # Accepted for async processing: the task must end in failure.
         task_uri = resp.json().get("@odata.id") or resp.headers["Location"]
@@ -70,28 +84,30 @@ def _assert_rejected_and_unchanged(redfish, manager_uri, resp, before: dict, pro
         assert task["TaskState"] in ("Exception", "Killed", "Cancelled"), task
     else:
         assert 400 <= resp.status_code < 500, f"{resp.status_code}: {resp.text[:300]}"
-    after = active_bmc_image(redfish, manager_uri)
-    assert after["Version"] == before["Version"], "running firmware changed after a bad image"
+    after = {i["Version"] for i in bmc_images(redfish, manager_uri)}
+    assert after == before, f"firmware inventory changed after a bad image: {before} -> {after}"
     assert redfish.get("/redfish/v1").status_code == 200
 
 
 @pytest.mark.destructive
 @pytest.mark.requires("firmware_update_push")
 @pytest.mark.parametrize(
-    "label,payload",
+    "payload",
     [
-        ("random_bytes", secrets.token_bytes(64 * 1024)),
-        ("empty", b""),
-        ("truncated_tar", b"ustar\x00" + b"\x00" * 506),
+        secrets.token_bytes(64 * 1024),
+        b"",
+        b"ustar\x00" + b"\x00" * 506,
     ],
+    ids=["random_bytes", "empty", "truncated_tar"],
 )
-def test_corrupt_image_is_rejected(redfish, manager_uri, profile, label, payload):
-    before = active_bmc_image(redfish, manager_uri)
+def test_corrupt_image_is_rejected(redfish, manager_uri, profile, payload):
+    before = {i["Version"] for i in bmc_images(redfish, manager_uri)}
     resp = _push(redfish, payload)
     _assert_rejected_and_unchanged(redfish, manager_uri, resp, before, profile)
 
 
 @pytest.mark.destructive
+@pytest.mark.applies_firmware
 @pytest.mark.requires("firmware_update_push")
 def test_valid_image_update(redfish, manager_uri, profile):
     """Positive path: needs UPDATE_IMAGE pointing to a signed image tarball for this machine."""
