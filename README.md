@@ -28,7 +28,7 @@ Most BMCs run the open-source **OpenBMC** firmware. This project is an **automat
 
 | Check | In plain words | How |
 |---|---|---|
-| 🔧 **Functional tests** | Do the control room's buttons do the right thing? Does it survive when someone presses them wrong? | Emulate a BMC with QEMU, boot the firmware, and run 65 automated tests against it |
+| 🔧 **Functional tests** | Do the control room's buttons do the right thing? Does it survive when someone presses them wrong? | Emulate a BMC with QEMU, boot the firmware, and run 71 automated tests against it |
 | 🔒 **Security check** | Did this version add security holes the last one didn't have? | List every piece of software inside the firmware (its "ingredients list"), look each one up in vulnerability databases, and **block the release if a serious new one appears** |
 | 🩺 **GPU health** | Is the GPU server it manages actually healthy? | Read GPU temperature, memory errors and link speed, then decide: reset it, take it offline, or all good |
 
@@ -36,7 +36,35 @@ All three produce results in one shared format, so Jenkins (the automation serve
 
 ## Real results
 
-Every number below was **measured, not mocked up**. Reproduce them with `make fetch scan`.
+Every number below was **measured, not mocked up**.
+
+### Functional tests: booting the real firmware
+
+The official nightly OpenBMC firmware boots in QEMU in about a minute, and then all 71 tests run against it. Two machines were tested: **romulus**, a regular server, and the BMC of an **NVIDIA GB200 NVL** rack.
+
+| Machine | Build | ✅ Passed | ❌ Failed | ⏭️ Skipped |
+|---|---|---|---|---|
+| romulus | #1752, #1753 | 50 | 6 | 11 |
+| romulus | #1754 | 54 | 6 | 11 |
+| **gb200nvl-obmc** (NVIDIA GB200 NVL) | #1754 | 40 | 9 | 22 |
+
+"Skipped" means the emulator simply doesn't have that hardware (no real host CPU, no temperature sensors, and so on). Each skip states its reason; nothing is quietly counted as a pass.
+
+**The failures point to 3 real problems** (full write-up in [findings](docs/en/findings.md)):
+
+| # | In plain words | Severity |
+|---|---|---|
+| F1 | romulus: **the BMC's firmware can't be updated over the network**. Even the official update file is refused, and all 3 days of builds have the problem | High |
+| F2 | GB200 NVL: **no password can be set**, so even the default password `0penBmc` can't be changed. A config file points at two modules that were never packaged into the firmware | High (security) |
+| F3 | GB200 NVL: uploading a broken firmware file gets "server error" instead of "your file is bad". The broken file is **not installed** and the BMC stays up | Low |
+
+> These are the OpenBMC project's open-source **reference** builds, not any vendor's shipping firmware.
+
+Along the way, **3 mistakes in my own tests** were found and fixed. For example, one test expected error 403, but the firmware refused just as safely with 400. The git history records each fix.
+
+### Security check
+
+Reproduce with `make fetch scan`.
 
 ### Finding 1: more than half of the "vulnerabilities" aren't in the firmware
 
@@ -63,11 +91,14 @@ So the rule is: **compare against the last version that passed.**
 | #1752 → #1754 (normal upgrade) | 0 | 31 (3 critical) | ✅ pass |
 | #1754 → #1752 (deliberate downgrade) | 3 critical | 0 | ❌ blocked (exit 1) |
 
+The GB200 NVL firmware got the same treatment: 413 raw findings, 242 of them in software that actually ships (41% excluded).
+
 ### Also verified
 
-- A firmware image is one 32 MB blob of flash memory. The tool finds the filesystem inside it on its own (at `0x4C0000` in romulus #1754) instead of relying on a hard-coded position.
-- Going from ingredients list to vulnerability report takes about **4 seconds** per version.
-- The GPU health tool compiles cleanly against NVIDIA's official headers.
+- A firmware image is one blob of flash memory (32 MB for romulus, 64 MB for GB200 NVL). The tool finds the filesystem inside it on its own instead of relying on a hard-coded position.
+- Going from ingredients list to vulnerability report takes about **4 seconds** per version. Re-running it on GitHub Actions gives identical numbers.
+- The GPU health tool compiles cleanly against NVIDIA's official headers, and also builds in CI inside a CUDA container.
+- The whole Jenkins pipeline is created from config (JCasC) and has actually run.
 
 ## Architecture
 
@@ -95,10 +126,11 @@ flowchart LR
 
 ```bash
 make venv                 # install (Python 3.10+)
-make unit                 # 32 tests that need no hardware
+make unit                 # 35 tests that need no hardware
 make fetch                # download the newest official OpenBMC firmware
 make scan                 # build the ingredients list and look up vulnerabilities
 make boot && make test    # boot the firmware in QEMU and run functional tests (needs qemu-system-arm)
+make docker-test          # no QEMU? run the same functional tests in Docker
 make jenkins-up           # start the whole pipeline at http://localhost:8080
 ```
 
@@ -125,8 +157,8 @@ Testing a real server? Copy [`hardware-example.yaml`](src/bmcval/data/hardware-e
 
 ```
 src/bmcval/          core Python code and the bmcval command
-tests/unit/          32 tests, no hardware needed
-tests/functional/    65 tests that need a BMC
+tests/unit/          35 tests, no hardware needed
+tests/functional/    71 tests that need a BMC
 gpu/                 GPU health tool (C++)
 security/policy.yaml security rules and the exception list
 Jenkinsfile          the nightly pipeline
@@ -138,6 +170,7 @@ docs/                detailed docs (English and Chinese)
 
 | Topic | English | 中文 |
 |---|---|---|
+| **Problems found, with reproduction steps and evidence** | [findings](docs/en/findings.md) | [問題報告](docs/zh-TW/findings.md) |
 | Architecture and why it's designed this way | [architecture](docs/en/architecture.md) | [架構](docs/zh-TW/architecture.md) |
 | What is tested and how pass/fail is decided | [test-strategy](docs/en/test-strategy.md) | [測試策略](docs/zh-TW/test-strategy.md) |
 | The ingredients list and the security gate in detail | [security](docs/en/security.md) | [韌體資安](docs/zh-TW/security.md) |
@@ -146,11 +179,14 @@ docs/                detailed docs (English and Chinese)
 
 ## Status
 
-- [x] Security check run end-to-end on real official firmware (numbers above)
+- [x] Security check run end-to-end on real official firmware; identical results on GitHub Actions
+- [x] Functional tests run against QEMU-booted romulus (3 builds) and GB200 NVL firmware; 3 problems found
+- [x] Jenkins pipeline created from JCasC and actually run
 - [x] GPU health tool compiles against NVIDIA's official headers
-- [x] All 32 unit tests pass
-- [ ] Functional tests run against firmware booted in QEMU
+- [x] All 35 unit tests pass
+- [ ] Report F1 and F2 upstream to OpenBMC
 - [ ] GPU checks run on a physical GPU machine
+- [ ] Packer-built test-machine image (needs KVM)
 
 ## License
 
