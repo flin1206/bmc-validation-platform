@@ -207,8 +207,8 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
       <span lang="zh-Hant">驗證那台掌控伺服器的電腦。</span>
     </h1>
     <p class="lede">
-      <span lang="en">A BMC can power a server off, reflash it, and is reachable over the network. This project boots real OpenBMC firmware in QEMU, tests it over Redfish and IPMI, gates every build on the vulnerabilities it introduces, and checks the GPUs it manages, all from one Jenkins pipeline.</span>
-      <span lang="zh-Hant">BMC 可以把伺服器關機、重刷韌體，而且接在網路上。這個專案把真實的 OpenBMC 韌體放進 QEMU 開機，透過 Redfish 和 IPMI 測試它，依每個 build 新增的漏洞決定能不能出貨，也檢查它所管理的 GPU，全部串在同一條 Jenkins pipeline 裡。</span>
+      <span lang="en">A BMC can power a server off, reflash it, and is reachable over the network. This project boots real OpenBMC firmware in QEMU (including the BMC of an NVIDIA GB200 NVL rack), tests it over Redfish and IPMI, gates every build on the vulnerabilities it introduces, and checks the GPUs it manages, all from one Jenkins pipeline.</span>
+      <span lang="zh-Hant">BMC 可以把伺服器關機、重刷韌體，而且接在網路上。這個專案把真實的 OpenBMC 韌體放進 QEMU 開機（包括 NVIDIA GB200 NVL 機櫃的 BMC），透過 Redfish 和 IPMI 測試它，依每個 build 新增的漏洞決定能不能出貨，也檢查它所管理的 GPU，全部串在同一條 Jenkins pipeline 裡。</span>
     </p>
     <div class="links">
       <a href="https://github.com/flin1206/bmc-validation-platform">GitHub →</a>
@@ -248,7 +248,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
         <div class="q">
           <span class="tag">FUNCTIONAL</span>
           <h3><span lang="en">Does it behave correctly?</span><span lang="zh-Hant">行為正確嗎？</span></h3>
-          <p><span lang="en">65 pytest cases over Redfish and IPMI, run against the booted image: sensors, power, RBAC, malformed input, rejected firmware updates.</span><span lang="zh-Hant">對開機後的映像執行 65 個 Redfish 與 IPMI 測試：感測器、電源、RBAC、異常輸入、被拒絕的韌體更新。</span></p>
+          <p><span lang="en">71 pytest cases over Redfish and IPMI, run against the booted image: sensors, power, RBAC, malformed input, rejected firmware updates.</span><span lang="zh-Hant">對開機後的映像執行 71 個 Redfish 與 IPMI 測試：感測器、電源、RBAC、異常輸入、被拒絕的韌體更新。</span></p>
         </div>
         <div class="q">
           <span class="tag">SECURITY</span>
@@ -264,8 +264,33 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
     </div>
   </section>
 
+  <section class="block" id="live">
+    <div class="label"><b>§2</b><span lang="en">Live runs</span><span lang="zh-Hant">實機執行</span></div>
+    <div class="content">
+      <h2><span lang="en">Booted for real, and three real defects found</span><span lang="zh-Hant">真的開機測試，找到三個真的缺陷</span></h2>
+      <p><span lang="en">Upstream nightly images booted in QEMU 11.1.2 in about a minute, and then the full suite ran. Every failure below was traced through the BMC's own journal to a single root cause. Skips are hardware the emulator doesn't have, and each one is declared with the reason.</span><span lang="zh-Hant">上游每晚的映像在 QEMU 11.1.2 裡約一分鐘開機完成，接著跑完整測試。以下每個失敗都透過 BMC 自己的 journal 追到單一根因；跳過的是模擬器沒有的硬體，每一項都宣告了原因。</span></p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th><span lang="en">Machine</span><span lang="zh-Hant">機型</span></th><th>Build</th><th><span lang="en">Passed</span><span lang="zh-Hant">通過</span></th><th><span lang="en">Failed</span><span lang="zh-Hant">失敗</span></th><th><span lang="en">Skipped</span><span lang="zh-Hant">跳過</span></th><th><span lang="en">Root cause</span><span lang="zh-Hant">根因</span></th></tr></thead>
+          <tbody>
+            <tr><td class="x">romulus</td><td class="x">#1752 · #1753</td><td class="x">50</td><td class="x">6</td><td class="x">11</td><td class="x">F1</td></tr>
+            <tr><td class="x">romulus</td><td class="x">#1754</td><td class="x">54</td><td class="x">6</td><td class="x">11</td><td class="x">F1</td></tr>
+            <tr><td class="x">gb200nvl-obmc</td><td class="x">#1754</td><td class="x">40</td><td class="x">9</td><td class="x">22</td><td class="x">F2 · F3</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="decisions">
+        <li><h3><span class="mono">F1 · HIGH</span><span lang="en">romulus firmware can't be updated</span><span lang="zh-Hant">romulus 韌體無法更新</span></h3><p><span lang="en">Every push, including the build's own signed tarball, returns 500. The journal shows <code>invalid association on /xyz/openbmc_project/software/07d40fbb</code> and bmcweb finding <code>0 MultipartUpdate objects</code>. gb200nvl, built from the same revision, is fine, so the defect is specific to the machine.</span><span lang="zh-Hant">每一次推送都回 500，包括同一個 build 自己的簽章更新包。journal 顯示 <code>invalid association on /xyz/openbmc_project/software/07d40fbb</code>，bmcweb 也找到 <code>0 MultipartUpdate objects</code>。同版本建出來的 gb200nvl 正常，所以是機型特有的問題。</span></p></li>
+        <li><h3><span class="mono">F2 · HIGH</span><span lang="en">gb200nvl: default password can't be changed</span><span lang="zh-Hant">gb200nvl：預設密碼改不掉</span></h3><p><span lang="en"><code>/etc/pam.d/common-password</code> requires <code>pam_ipmicheck.so</code> with <code>default=die</code>, but <code>pam-ipmi</code> isn't in the image. Every password change fails and <code>0penBmc</code> stays valid. This was confirmed both from the rootfs and on the running BMC.</span><span lang="zh-Hant"><code>/etc/pam.d/common-password</code> 以 <code>default=die</code> 要求 <code>pam_ipmicheck.so</code>，但映像裡沒有 <code>pam-ipmi</code>。所有密碼變更都會失敗，<code>0penBmc</code> 一直有效。rootfs 靜態分析與實機執行都確認過。</span></p></li>
+        <li><h3><span class="mono">F3 · LOW</span><span lang="en">gb200nvl: bad upload returns 500</span><span lang="zh-Hant">gb200nvl：壞檔案回 500</span></h3><p><span lang="en">The safety tests pass: the bad image is never applied and the BMC stays up. Only the error class is wrong. Safety and protocol are tested separately so this doesn't read as a bricking risk.</span><span lang="zh-Hant">安全性測試通過：壞映像不會被套用，BMC 也持續運作，只是錯誤分類不對。安全性和協定是分開測的，所以不會被誤判成有變磚風險。</span></p></li>
+        <li><h3><span class="mono">CI</span><span lang="en">Jenkins, run for real</span><span lang="zh-Hant">Jenkins 實際執行</span></h3><p><span lang="en">The controller is built from JCasC, and the job was created by Job DSL. Build #3 on #1754 finished <b>UNSTABLE</b> (107 results collected). Build #4 on the older #1752 finished <b>FAILED</b> on the CVE gate, with its baseline copied from #3.</span><span lang="zh-Hant">Controller 由 JCasC 建立，job 由 Job DSL 產生。Build #3 測 #1754，結果 <b>UNSTABLE</b>（彙整 107 個結果）；build #4 測較舊的 #1752，baseline 從 #3 複製，被 CVE gate 判為 <b>FAILED</b>。</span></p></li>
+      </ul>
+      <p class="muted" style="font-size:14px"><span lang="en">These are the OpenBMC project's reference images, not any vendor's shipping firmware.</span><span lang="zh-Hant">這些是 OpenBMC 專案的參考版映像，不是任何廠商實際出貨的韌體。</span></p>
+    </div>
+  </section>
+
   <section class="block" id="sbom">
-    <div class="label"><b>§2</b><span lang="en">Finding</span><span lang="zh-Hant">發現</span></div>
+    <div class="label"><b>§3</b><span lang="en">Finding</span><span lang="zh-Hant">發現</span></div>
     <div class="content">
       <h2><span lang="en">56% of the “firmware vulnerabilities” were in software that never ships</span><span lang="zh-Hant">56% 的「韌體漏洞」，其實在根本不會出貨的軟體上</span></h2>
       <p><span lang="en">Yocto's image SPDX also describes the tools on the <em>build machine</em>, such as <code>rsync-native</code> and <code>openssl-native</code>. OpenBMC ships no package database, so scanning the rootfs alone sees almost nothing. The gate scans the SPDX and then keeps only packages listed in the image manifest. Every exclusion is printed in the report so a reviewer can audit the filter.</span><span lang="zh-Hant">Yocto 的映像 SPDX 也把<em>建置機器</em>上的工具寫進去了，例如 <code>rsync-native</code>、<code>openssl-native</code>。OpenBMC 又沒有附套件資料庫，只掃 rootfs 幾乎什麼都看不到。所以 gate 先掃 SPDX，再只保留映像 manifest 裡列出的套件，而且每一筆排除都印在報告上，讓審查者檢查過濾是否正確。</span></p>
@@ -300,7 +325,7 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
   </section>
 
   <section class="block" id="gate">
-    <div class="label"><b>§3</b><span lang="en">Release gate</span><span lang="zh-Hant">出貨把關</span></div>
+    <div class="label"><b>§4</b><span lang="en">Release gate</span><span lang="zh-Hant">出貨把關</span></div>
     <div class="content">
       <h2><span lang="en">Gate the delta, not the total</span><span lang="zh-Hant">把關的是差異，不是總數</span></h2>
       <p><span lang="en">Almost every embedded Linux image has known CVEs, so a total count tells you nothing to do. What this build added is actionable. Two real runs on the same pair of upstream builds:</span><span lang="zh-Hant">幾乎每個嵌入式 Linux 映像都有已知 CVE，總數本身沒辦法指引任何行動；這次 build 新增了什麼，才能採取行動。以下是同一組上游 build 的兩次真實執行：</span></p>
@@ -326,14 +351,14 @@ Fixed          0     0    0    0
   </section>
 
   <section class="block" id="pipeline">
-    <div class="label"><b>§4</b><span lang="en">Pipeline</span><span lang="zh-Hant">Pipeline</span></div>
+    <div class="label"><b>§5</b><span lang="en">Pipeline</span><span lang="zh-Hant">Pipeline</span></div>
     <div class="content">
       <h2><span lang="en">One nightly Jenkins run, one JUnit view</span><span lang="zh-Hant">每晚一次 Jenkins，一個 JUnit 畫面</span></h2>
       <div class="pipe">
-        <div class="stage"><b>Setup</b><span lang="en">ruff and 32 unit tests. A broken toolkit fails in seconds.</span><span lang="zh-Hant">ruff 與 32 個單元測試，工具壞了幾秒就失敗。</span><span class="mono">pytest tests/unit</span></div>
+        <div class="stage"><b>Setup</b><span lang="en">ruff and 35 unit tests. A broken toolkit fails in seconds.</span><span lang="zh-Hant">ruff 與 35 個單元測試，工具壞了幾秒就失敗。</span><span class="mono">pytest tests/unit</span></div>
         <div class="stage"><b>Fetch</b><span lang="en">Image, SPDX and manifest from upstream CI, with sha256 recorded.</span><span lang="zh-Hant">從上游 CI 下載映像、SPDX、manifest，並記錄 sha256。</span><span class="mono">bmcval fetch</span></div>
         <div class="par">
-          <div class="stage"><b><span lang="en">BMC functional</span><span lang="zh-Hant">BMC 功能測試</span></b><span lang="en">QEMU boot from a fresh flash copy, then the smoke gate, then 65 tests.</span><span lang="zh-Hant">從全新的 flash 複本開機 → smoke gate → 65 個測試。</span><span class="mono">bmcval boot · pytest</span></div>
+          <div class="stage"><b><span lang="en">BMC functional</span><span lang="zh-Hant">BMC 功能測試</span></b><span lang="en">QEMU boot from a fresh flash copy, then the smoke gate, then 71 tests.</span><span lang="zh-Hant">從全新的 flash 複本開機 → smoke gate → 71 個測試。</span><span class="mono">bmcval boot · pytest</span></div>
           <div class="stage"><b><span lang="en">Firmware security</span><span lang="zh-Hant">韌體資安</span></b><span lang="en">SBOM, Grype, then the delta against the last good build.</span><span lang="zh-Hant">SBOM → Grype → 與上一個通過的 build 比較。</span><span class="mono">bmcval cve-diff</span></div>
           <div class="stage opt"><b><span lang="en">GPU diagnostics</span><span lang="zh-Hant">GPU 診斷</span></b><span lang="en">NVML, DCGM and Xid, on agents labelled <code>gpu</code>.</span><span lang="zh-Hant">NVML · DCGM · Xid，跑在 <code>gpu</code> label 的 agent。</span><span class="mono">gpu-health · dcgmi</span></div>
         </div>
@@ -344,17 +369,17 @@ Fixed          0     0    0    0
   </section>
 
   <section class="block" id="tests">
-    <div class="label"><b>§5</b><span lang="en">Coverage</span><span lang="zh-Hant">覆蓋範圍</span></div>
+    <div class="label"><b>§6</b><span lang="en">Coverage</span><span lang="zh-Hant">覆蓋範圍</span></div>
     <div class="content">
       <h2><span lang="en">Negative tests assert three things</span><span lang="zh-Hant">負向測試同時檢查三件事</span></h2>
       <p><span lang="en">Each test checks the right status code, a spec-compliant Redfish error body with the exact <code>MessageId</code>, and that <b>the BMC is still alive afterwards</b>. A rejected firmware image only passes if the running version is unchanged.</span><span lang="zh-Hant">正確的狀態碼、符合規格且 <code>MessageId</code> 正確的 Redfish 錯誤內容，以及<b>測完之後 BMC 還活著</b>。被拒絕的韌體映像，只有在執行中的版本沒變時才算通過。</span></p>
       <div class="hbars cov">
         <div class="hbar"><span class="k"><span lang="en">auth &amp; sessions</span><span lang="zh-Hant">認證與 session</span></span><div class="track"><div class="fill" style="width:100%"></div></div><span class="v">12</span></div>
         <div class="hbar"><span class="k"><span lang="en">malformed input</span><span lang="zh-Hant">異常輸入</span></span><div class="track"><div class="fill" style="width:91.7%"></div></div><span class="v">11</span></div>
+        <div class="hbar"><span class="k"><span lang="en">firmware update</span><span lang="zh-Hant">韌體更新</span></span><div class="track"><div class="fill" style="width:91.7%"></div></div><span class="v">11</span></div>
         <div class="hbar"><span class="k">service root</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">9</span></div>
         <div class="hbar"><span class="k">IPMI</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">9</span></div>
-        <div class="hbar"><span class="k"><span lang="en">firmware update</span><span lang="zh-Hant">韌體更新</span></span><div class="track"><div class="fill" style="width:58.3%"></div></div><span class="v">7</span></div>
-        <div class="hbar"><span class="k"><span lang="en">accounts &amp; RBAC</span><span lang="zh-Hant">帳號與 RBAC</span></span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">6</span></div>
+        <div class="hbar"><span class="k"><span lang="en">accounts &amp; RBAC</span><span lang="zh-Hant">帳號與 RBAC</span></span><div class="track"><div class="fill" style="width:66.7%"></div></div><span class="v">8</span></div>
         <div class="hbar"><span class="k"><span lang="en">sensors</span><span lang="zh-Hant">感測器</span></span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">6</span></div>
         <div class="hbar"><span class="k"><span lang="en">power</span><span lang="zh-Hant">電源</span></span><div class="track"><div class="fill" style="width:41.7%"></div></div><span class="v">5</span></div>
       </div>
@@ -363,7 +388,7 @@ Fixed          0     0    0    0
   </section>
 
   <section class="block" id="gpu">
-    <div class="label"><b>§6</b><span lang="en">GPU nodes</span><span lang="zh-Hant">GPU 節點</span></div>
+    <div class="label"><b>§7</b><span lang="en">GPU nodes</span><span lang="zh-Hant">GPU 節點</span></div>
     <div class="content">
       <h2><span lang="en">From an Xid number to an action</span><span lang="zh-Hant">從 Xid 編號到處置動作</span></h2>
       <p><span lang="en">The driver logs a number, but on-call needs a decision. Xids are grouped by likely origin, and the worst action per GPU becomes the node's <code>node_action</code>.</span><span lang="zh-Hant">驅動只給一個數字，值班需要的是決策。Xid 依可能來源分類，每張 GPU 取最嚴重的處置，成為節點的 <code>node_action</code>。</span></p>
@@ -383,7 +408,7 @@ Fixed          0     0    0    0
   </section>
 
   <section class="block" id="decisions">
-    <div class="label"><b>§7</b><span lang="en">Decisions</span><span lang="zh-Hant">設計決策</span></div>
+    <div class="label"><b>§8</b><span lang="en">Decisions</span><span lang="zh-Hant">設計決策</span></div>
     <div class="content">
       <h2><span lang="en">Choices that keep the signal trustworthy</span><span lang="zh-Hant">讓結果值得信任的設計選擇</span></h2>
       <ul class="decisions">
@@ -396,16 +421,16 @@ Fixed          0     0    0    0
   </section>
 
   <section class="block" id="status">
-    <div class="label"><b>§8</b><span lang="en">Status</span><span lang="zh-Hant">進度</span></div>
+    <div class="label"><b>§9</b><span lang="en">Status</span><span lang="zh-Hant">進度</span></div>
     <div class="content">
       <h2><span lang="en">What has been verified, and what hasn't yet</span><span lang="zh-Hant">已驗證與尚未驗證的項目</span></h2>
       <ul class="status">
-        <li class="done"><span class="box"></span><span><span lang="en">Security pipeline end-to-end on real upstream firmware (romulus #1752, #1754)</span><span lang="zh-Hant">資安 pipeline 已在上游真實韌體上端到端驗證（romulus #1752、#1754）</span></span></li>
-        <li class="done"><span class="box"></span><span><span lang="en">32 unit tests green; functional suite (65) imports and collects</span><span lang="zh-Hant">32 個單元測試通過；功能測試（65 個）可正常載入與收集</span></span></li>
-        <li class="done"><span class="box"></span><span><span lang="en"><code>gpu-health</code> compiles clean against the official <code>nvml.h</code></span><span lang="zh-Hant"><code>gpu-health</code> 以官方 <code>nvml.h</code> 編譯零警告</span></span></li>
-        <li><span class="box"></span><span><span lang="en">Functional suite run against QEMU-booted romulus, with results published</span><span lang="zh-Hant">在 QEMU 開機的 romulus 上執行功能測試並公開結果</span></span></li>
-        <li><span class="box"></span><span><span lang="en">GPU stage on a physical GPU node</span><span lang="zh-Hant">在實體 GPU 節點上執行 GPU stage</span></span></li>
-        <li><span class="box"></span><span><span lang="en">DMTF Redfish Service Validator stage; <code>gb200nvl-obmc</code> once QEMU models it</span><span lang="zh-Hant">加入 DMTF Redfish Service Validator stage；QEMU 支援後納入 <code>gb200nvl-obmc</code></span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en">Security pipeline end-to-end on real upstream firmware (romulus #1752, #1754; gb200nvl #1754), with identical numbers on GitHub Actions</span><span lang="zh-Hant">資安 pipeline 已在上游真實韌體上端到端驗證（romulus #1752、#1754；gb200nvl #1754），GitHub Actions 上數字一致</span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en">Functional suite run on QEMU-booted romulus (3 builds) and gb200nvl-obmc; 3 defects traced to root cause</span><span lang="zh-Hant">功能測試已在 QEMU 開機的 romulus（3 個 build）與 gb200nvl-obmc 上執行，3 個缺陷都追到根因</span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en">Jenkins pipeline built from JCasC and run: UNSTABLE on firmware bugs, FAILED on a CVE regression</span><span lang="zh-Hant">Jenkins pipeline 由 JCasC 建立並實際執行：韌體有 bug 時 UNSTABLE，CVE 退步時 FAILED</span></span></li>
+        <li class="done"><span class="box"></span><span><span lang="en"><code>gpu-health</code> compiles clean against the official <code>nvml.h</code> and builds in CI inside a CUDA container</span><span lang="zh-Hant"><code>gpu-health</code> 以官方 <code>nvml.h</code> 編譯零警告，並在 CI 的 CUDA 容器中建置成功</span></span></li>
+        <li><span class="box"></span><span><span lang="en">Report F1 and F2 upstream to OpenBMC</span><span lang="zh-Hant">將 F1、F2 回報給 OpenBMC 上游</span></span></li>
+        <li><span class="box"></span><span><span lang="en">GPU stage on a physical GPU node; Packer agent image (needs KVM)</span><span lang="zh-Hant">在實體 GPU 節點執行 GPU stage；Packer agent 映像（需要 KVM）</span></span></li>
       </ul>
     </div>
   </section>
