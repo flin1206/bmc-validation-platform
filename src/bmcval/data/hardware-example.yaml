@@ -1,0 +1,32 @@
+name: hardware-example
+description: Template for a physical server BMC. Copy, fill in, and pass with --profile path/to/file.yaml.
+
+endpoints:
+  host: 10.0.0.42          # BMC dedicated management NIC
+  https_port: 443
+  ipmi_port: 623
+  ssh_port: 22
+
+credentials:              # override with BMC_USERNAME / BMC_PASSWORD from Jenkins credentials
+  username: root
+  password: change-me
+
+capabilities:
+  - redfish
+  - redfish_sessions
+  - ipmi_lan
+  - sensors
+  - account_service
+  - firmware_inventory
+  - firmware_update_push
+  - chassis_power_state
+  - host_power
+
+timeouts:
+  boot: 300
+  redfish_ready: 300
+  power_transition: 300
+  firmware_task: 1800
+
+sensors:
+  min_count: 20

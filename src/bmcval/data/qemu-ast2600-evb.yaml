@@ -1,0 +1,38 @@
+name: qemu-ast2600-evb
+description: OpenBMC evb-ast2600 image under QEMU. Closest emulated match to current-generation BMC silicon.
+
+qemu:
+  binary: qemu-system-arm
+  machine: ast2600-evb
+  memory_mb: 1024
+  image_glob: "obmc-phosphor-image-evb-ast2600*.static.mtd"
+  hostfwd:
+    ssh: 2222
+    https: 2443
+    ipmi_udp: 2623
+
+endpoints:
+  host: 127.0.0.1
+  https_port: 2443
+  ipmi_port: 2623
+  ssh_port: 2222
+
+credentials:
+  username: root
+  password: 0penBmc
+
+capabilities:
+  - redfish
+  - redfish_sessions
+  - ipmi_lan
+  - account_service
+  - firmware_inventory
+
+timeouts:
+  boot: 1200
+  redfish_ready: 900
+  power_transition: 120
+  firmware_task: 900
+
+sensors:
+  min_count: 0   # EVB has no real sensor hardware wired up in QEMU

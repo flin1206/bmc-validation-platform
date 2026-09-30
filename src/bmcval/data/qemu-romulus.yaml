@@ -1,0 +1,45 @@
+name: qemu-romulus
+description: OpenBMC romulus (AST2500) image under QEMU user-mode networking. No real host CPU.
+
+qemu:
+  binary: qemu-system-arm
+  machine: romulus-bmc
+  memory_mb: 256
+  image_glob: "obmc-phosphor-image-romulus*.static.mtd"
+  hostfwd:
+    ssh: 2222
+    https: 2443
+    ipmi_udp: 2623
+
+endpoints:
+  host: 127.0.0.1
+  https_port: 2443
+  ipmi_port: 2623
+  ssh_port: 2222
+
+credentials:
+  username: root
+  password: 0penBmc
+
+# Features this target is expected to implement. Tests that need something
+# missing here are skipped with the reason, never silently passed.
+capabilities:
+  - redfish
+  - redfish_sessions
+  - ipmi_lan
+  - sensors
+  - account_service
+  - firmware_inventory
+  - firmware_update_push
+  - chassis_power_state
+  # - host_power       # no host CPU behind the emulated BMC
+
+timeouts:
+  boot: 900            # TCG emulation of ARM on x86 is slow; first boot can take minutes
+  redfish_ready: 600
+  power_transition: 120
+  firmware_task: 900
+
+sensors:
+  # At least this many sensors must be discovered; an empty sensor tree is a regression.
+  min_count: 1
