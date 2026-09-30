@@ -63,7 +63,7 @@ class QemuBmc:
             ]
         )
         return [
-            q.get("binary", "qemu-system-arm"),
+            os.environ.get("QEMU_BIN") or q.get("binary", "qemu-system-arm"),
             "-M", q["machine"],
             "-m", str(q.get("memory_mb", 256)),
             "-nographic",
