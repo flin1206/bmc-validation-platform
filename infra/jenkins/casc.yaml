@@ -1,0 +1,40 @@
+# Jenkins Configuration as Code: the whole controller is reproducible from git.
+jenkins:
+  systemMessage: "bmc-validation-platform · firmware validation lab"
+  numExecutors: 2
+  labelString: "qemu security"
+  mode: EXCLUSIVE
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+
+jobs:
+  - script: >
+      pipelineJob('firmware-validation') {
+        description('Nightly OpenBMC firmware validation: functional, security, GPU.')
+        properties {
+          copyArtifactPermission { projectNames('firmware-validation') }
+        }
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('file:///repo') }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }

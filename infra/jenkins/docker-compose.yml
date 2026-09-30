@@ -1,0 +1,15 @@
+# make jenkins-up  ->  http://localhost:8080  (admin / $JENKINS_ADMIN_PASSWORD, default "admin")
+services:
+  jenkins:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-admin}
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ../..:/repo:ro          # the pipeline checks out this repository
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
