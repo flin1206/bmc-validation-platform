@@ -1,0 +1,18 @@
+# Firmware CVE release gate. Evaluated on the *delta* between the last released
+# firmware (baseline) and the build under test (candidate). See docs/en/security.md.
+
+# Any NEW finding at or above this severity fails the build.
+fail_on: Critical
+
+# Also gate vulnerabilities carried over from the baseline? Off by default:
+# known debt is tracked on the dashboard, but only regressions block a release.
+gate_carried: false
+
+# Every waiver needs an owner, a reason and an expiry. Expired waivers stop
+# suppressing their finding automatically and show up as warnings.
+waivers: []
+#  - id: CVE-2024-XXXXX
+#    package: dropbear
+#    reason: "dropbear SSH disabled in this image; phosphor uses openssh"
+#    owner: flin1206
+#    expires: 2026-12-31
