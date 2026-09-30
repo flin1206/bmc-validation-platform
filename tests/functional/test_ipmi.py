@@ -15,6 +15,7 @@ def test_mc_info(ipmi):
     assert info.get("Firmware Revision")
 
 
+@pytest.mark.requires("ipmi_selftest")
 def test_mc_selftest_passes(ipmi):
     res = ipmi.run("mc", "selftest")
     assert res.ok, res.stderr

@@ -27,12 +27,14 @@ capabilities:
   - redfish
   - redfish_sessions
   - ipmi_lan
-  - sensors
+  # - sensors          # QEMU's romulus-bmc models no hwmon devices: Redfish Sensors is
+  #                    # empty and the SDR holds only discrete entries (cpu/dimm presence)
   - account_service
   - firmware_inventory
   - firmware_update_push
   - chassis_power_state
   # - host_power       # no host CPU behind the emulated BMC
+  # - ipmi_selftest    # no FRU EEPROM in the model; ipmid reports "FRU device not accessible"
 
 timeouts:
   boot: 900            # TCG emulation of ARM on x86 is slow; first boot can take minutes

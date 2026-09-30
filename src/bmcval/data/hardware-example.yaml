@@ -15,6 +15,7 @@ capabilities:
   - redfish
   - redfish_sessions
   - ipmi_lan
+  - ipmi_selftest
   - sensors
   - account_service
   - firmware_inventory
