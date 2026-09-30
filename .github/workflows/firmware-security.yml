@@ -28,8 +28,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e . && sudo apt-get install -y squashfs-tools
-      - uses: anchore/sbom-action/download-syft@v0
-      - uses: anchore/scan-action/download-grype@v6
+      - name: Install syft and grype (same pinned versions as the Jenkins image)
+        env:
+          SYFT_VERSION: 1.52.0
+          GRYPE_VERSION: 0.119.0
+        run: |
+          curl -sSfL "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | sudo tar -xz -C /usr/local/bin syft
+          curl -sSfL "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" | sudo tar -xz -C /usr/local/bin grype
+          syft version | head -2; grype version | head -2
       - name: Fetch candidate and baseline firmware
         run: |
           CAND=$(bmcval fetch --machine "$MACHINE" --kinds mtd,spdx,manifest | tail -n1)
