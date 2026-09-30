@@ -21,12 +21,17 @@ credentials:
   username: root
   password: 0penBmc
 
-# Start conservative; capabilities are added as they are observed working in QEMU.
+# Declared from what a live QEMU boot of build #1754 actually exposes.
 capabilities:
   - redfish
   - redfish_sessions
   - account_service
   - firmware_inventory
+  - firmware_update_push
+  # - chassis_power_state  # neither Systems/system nor Chassis/BMC expose PowerState
+  # - ipmi_lan         # no RMCP+ responder: "Unable to establish IPMI v2 / RMCP+ session"
+  # - sensors          # Chassis/BMC Sensors collection is empty under QEMU
+  # - host_power       # no Grace/Blackwell host behind the emulated BMC
 
 timeouts:
   boot: 1200
